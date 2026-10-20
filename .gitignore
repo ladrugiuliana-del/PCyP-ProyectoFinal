@@ -1,0 +1,14 @@
+# Node / React
+node_modules/
+build/
+.env.local
+
+# Java / Spring Boot / Maven
+target/
+.settings/
+.classpath
+.project
+*.class
+
+# VS Code
+.vscode/
