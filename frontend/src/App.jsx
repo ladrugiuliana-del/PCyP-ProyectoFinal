@@ -1,122 +1,118 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import React, { useEffect, useState } from 'react';
+import { Client } from '@stomp/stompjs';
+import SockJS from 'sockjs-client';
 
-function App() {
-  const [count, setCount] = useState(0)
+export default function EstacionamientoView() {
+    const [plazas, setPlazas] = useState([]);
+    const [capacidadTotal, setCapacidadTotal] = useState(0);
+    const [mensajes, setMensajes] = useState([]);
+    const [conectado, setConectado] = useState(false);
 
-  return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    useEffect(() => {
+        // Conexión al endpoint WebSocket configurado en Spring Boot
+        const socket = new SockJS('http://localhost:8080/ws-estacionamiento');
+        const stompClient = new Client({
+            webSocketFactory: () => socket,
+            onConnect: () => {
+                setConectado(true);
+                // Nos suscribimos al canal de eventos del estacionamiento
+                stompClient.subscribe('/topic/estacionamiento', (mensaje) => {
+                    const data = JSON.parse(mensaje.body);
+                    setPlazas(data.plazas);
+                    setCapacidadTotal(data.capacidadTotal);
+                    // Agregamos el nuevo evento al historial de la interfaz (máximo 10)
+                    setMensajes((prev) => [data.mensajeEvento, ...prev.slice(0, 9)]);
+                });
+            },
+            onStompError: (frame) => {
+                console.error('Error de STOMP: ' + frame.headers['message']);
+            },
+        });
+
+        stompClient.activate();
+
+        return () => {
+            stompClient.deactivate();
+        };
+    }, []);
+
+    const iniciarSimulacion = async () => {
+        try {
+            await fetch('http://localhost:8080/api/estacionamiento/iniciar', {
+                method: 'POST',
+            });
+        } catch (error) {
+            console.error('Error al iniciar la simulación:', error);
+        }
+    };
+
+    return (
+        <div style={{ padding: '30px', fontFamily: 'Arial, sans-serif', maxWidth: '800px', margin: '0 auto' }}>
+            <h1>Simulación de Estacionamiento Concurrente 🚗🅿️</h1>
+            <p>Estado del WebSocket: <b>{conectado ? '🟢 Conectado' : '🔴 Desconectado'}</b></p>
+            
+            <button 
+                onClick={iniciarSimulacion}
+                style={{ 
+                    padding: '12px 24px', 
+                    fontSize: '16px', 
+                    cursor: 'pointer', 
+                    backgroundColor: '#4CAF50', 
+                    color: 'white', 
+                    border: 'none', 
+                    borderRadius: '6px',
+                    fontWeight: 'bold',
+                    marginBottom: '20px'
+                }}
+            >
+                Iniciar Simulación de Autos
+            </button>
+
+            <h2>Plazas del Estacionamiento</h2>
+            <div style={{ display: 'flex', gap: '20px', margin: '20px 0' }}>
+                {plazas.map((ocupada, index) => (
+                    <div 
+                        key={index} 
+                        style={{
+                            width: '110px',
+                            height: '130px',
+                            backgroundColor: ocupada ? '#ff4d4d' : '#4CAF50',
+                            color: 'white',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderRadius: '10px',
+                            fontWeight: 'bold',
+                            boxShadow: '0 4px 8px rgba(0,0,0,0.15)',
+                            transition: 'background-color 0.3s ease'
+                        }}
+                    >
+                        <span style={{ fontSize: '28px' }}>{ocupada ? '🚗' : '🅿️'}</span>
+                        <span style={{ marginTop: '5px' }}>Plaza {index + 1}</span>
+                        <span style={{ fontSize: '12px', marginTop: '4px', opacity: 0.9 }}>
+                            {ocupada ? 'Ocupada' : 'Libre'}
+                        </span>
+                    </div>
+                ))}
+            </div>
+
+            <h3>Registro de Eventos en Tiempo Real:</h3>
+            <ul style={{ 
+                background: '#f9f9f9', 
+                border: '1px solid #ddd', 
+                padding: '15px 25px', 
+                borderRadius: '8px', 
+                listStyleType: 'disc', 
+                maxHeight: '220px', 
+                overflowY: 'auto' 
+            }}>
+                {mensajes.map((msg, index) => (
+                    <li key={index} style={{ padding: '6px 0', borderBottom: '1px solid #eee', fontSize: '14px' }}>
+                        {msg}
+                    </li>
+                ))}
+            </ul>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+    );
 }
-
-export default App
