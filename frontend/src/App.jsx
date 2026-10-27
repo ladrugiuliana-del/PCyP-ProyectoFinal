@@ -3,25 +3,24 @@ import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 
 export default function EstacionamientoView() {
-    const [plazas, setPlazas] = useState([]);
+    // Inicializamos con 3 plazas vacías (ceros) para que se dibujen desde el inicio
+    const [plazas, setPlazas] = useState([0, 0, 0]);
     const [capacidadTotal, setCapacidadTotal] = useState(0);
     const [mensajes, setMensajes] = useState([]);
     const [conectado, setConectado] = useState(false);
 
     useEffect(() => {
-        // Conexión al endpoint WebSocket configurado en Spring Boot
         const socket = new SockJS('http://localhost:8080/ws-estacionamiento');
         const stompClient = new Client({
             webSocketFactory: () => socket,
             onConnect: () => {
                 setConectado(true);
-                // Nos suscribimos al canal de eventos del estacionamiento
                 stompClient.subscribe('/topic/estacionamiento', (mensaje) => {
                     const data = JSON.parse(mensaje.body);
+                   console.log("Datos recibidos del backend:", data); // <-- Agrega esto para inspeccionar
                     setPlazas(data.plazas);
-                    setCapacidadTotal(data.capacidadTotal);
-                    // Agregamos el nuevo evento al historial de la interfaz (máximo 10)
                     setMensajes((prev) => [data.mensajeEvento, ...prev.slice(0, 9)]);
+                    setCapacidadTotal(data.capacidadTotal);
                 });
             },
             onStompError: (frame) => {
@@ -48,7 +47,7 @@ export default function EstacionamientoView() {
 
     return (
         <div style={{ padding: '30px', fontFamily: 'Arial, sans-serif', maxWidth: '800px', margin: '0 auto' }}>
-            <h1>Simulación de Estacionamiento Concurrente 🚗🅿️</h1>
+            <h1>Simulación de Estacionamiento</h1>
             <p>Estado del WebSocket: <b>{conectado ? '🟢 Conectado' : '🔴 Desconectado'}</b></p>
             
             <button 
@@ -70,31 +69,36 @@ export default function EstacionamientoView() {
 
             <h2>Plazas del Estacionamiento</h2>
             <div style={{ display: 'flex', gap: '20px', margin: '20px 0' }}>
-                {plazas.map((ocupada, index) => (
-                    <div 
-                        key={index} 
-                        style={{
-                            width: '110px',
-                            height: '130px',
-                            backgroundColor: ocupada ? '#ff4d4d' : '#4CAF50',
-                            color: 'white',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            borderRadius: '10px',
-                            fontWeight: 'bold',
-                            boxShadow: '0 4px 8px rgba(0,0,0,0.15)',
-                            transition: 'background-color 0.3s ease'
-                        }}
-                    >
-                        <span style={{ fontSize: '28px' }}>{ocupada ? '🚗' : '🅿️'}</span>
-                        <span style={{ marginTop: '5px' }}>Plaza {index + 1}</span>
-                        <span style={{ fontSize: '12px', marginTop: '4px', opacity: 0.9 }}>
-                            {ocupada ? 'Ocupada' : 'Libre'}
-                        </span>
-                    </div>
-                ))}
+                {Array.isArray(plazas) && plazas.map((idAuto, index) => {
+                    const ocupada = idAuto > 0;
+                    return (
+                        <div 
+                            key={index} 
+                            style={{
+                                width: '110px',
+                                height: '130px',
+                                backgroundColor: ocupada ? '#ff4d4d' : '#4CAF50',
+                                color: 'white',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRadius: '10px',
+                                fontWeight: 'bold',
+                                boxShadow: '0 4px 8px rgba(0,0,0,0.15)',
+                                transition: 'background-color 0.3s ease'
+                            }}
+                        >
+                            <span style={{ fontSize: '28px' }}>{ocupada ? '🚗' : '🅿️'}</span>
+                            <span style={{ marginTop: '5px' }}>
+                                {ocupada ? `Auto #${idAuto}` : `Plaza ${index + 1}`}
+                            </span>
+                            <span style={{ fontSize: '12px', marginTop: '4px', opacity: 0.9 }}>
+                                {ocupada ? 'Ocupada' : 'Libre'}
+                            </span>
+                        </div>
+                    );
+                })}
             </div>
 
             <h3>Registro de Eventos en Tiempo Real:</h3>
