@@ -16,8 +16,8 @@ class SalidaAuto implements Runnable {
     @Override
     public void run() {
         try {
-            // Simula el tiempo que el auto permanece estacionado (entre 1 y 4 segundos)
-            Thread.sleep(new Random().nextInt(3000) + 1000); 
+            // Simula el tiempo que el auto permanece estacionado (entre 4 y 8 segundos)
+            Thread.sleep(new Random().nextInt(4000) + 4000); 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

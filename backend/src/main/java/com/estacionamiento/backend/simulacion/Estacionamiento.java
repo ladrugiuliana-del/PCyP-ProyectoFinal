@@ -13,9 +13,9 @@ import com.estacionamiento.backend.dto.EstadoEstacionamientoDTO;
 
 public class Estacionamiento {
     private final int capacidad;
-    private final boolean[] plazas; // true = ocupada, false = libre
+    private final int[] plazas; // 0 = libre, >0 = ID del auto ocupante
 
-    private final Semaphore mutex;           
+    private final Semaphore mutex;          
     private final Semaphore lugaresLibres;   
     private final Semaphore lugaresOcupados; 
 
@@ -31,7 +31,7 @@ public class Estacionamiento {
     // Constructor que recibe la capacidad y el template de WebSockets de Spring
     public Estacionamiento(int capacidad, SimpMessagingTemplate messagingTemplate) {
         this.capacidad = capacidad;
-        this.plazas = new boolean[capacidad];
+        this.plazas = new int[capacidad]; // Por defecto se inicializa en 0 (libres)
         this.messagingTemplate = messagingTemplate;
         
         this.mutex = new Semaphore(1);                   
@@ -41,49 +41,54 @@ public class Estacionamiento {
 
     // Método auxiliar para notificar cambios a React por WebSocket
     private void notificarCambio(String mensaje) {
-        List<Boolean> listaPlazas = new ArrayList<>();
-        for (boolean plaza : plazas) {
-            listaPlazas.add(plaza);
+        List<Integer> listaPlazas = new ArrayList<>();
+    
+        // Verificamos que el arreglo 'plazas' no sea nulo y recorremos sus elementos
+        if (plazas != null) {
+            for (int plaza : plazas) {
+                listaPlazas.add(plaza);
+            }
         }
+
         EstadoEstacionamientoDTO dto = new EstadoEstacionamientoDTO(capacidad, listaPlazas, mensaje, getHora());
         
-        // Envía el mensaje a todos los clientes React suscritos al canal /topic/estacionamiento
         if (messagingTemplate != null) {
             messagingTemplate.convertAndSend("/topic/estacionamiento", dto);
         }
-    }
+    } // <-- Aquí cierra correctamente notificarCambio
 
     public int ingresarAuto(int idAuto) {
         int plazaAsignada = -1;
         try {
             String msgLlegada = "🚗 Auto #" + idAuto + " LLEGÓ y busca lugar...";
-            System.out.println("[" + getHora() + "] " + msgLlegada);
-            notificarCambio(msgLlegada);
+            imprimirYNotificar(msgLlegada);
 
+            // Intenta adquirir un lugar libre durante 3 segundos
             boolean adquirido = lugaresLibres.tryAcquire(3, TimeUnit.SECONDS);
             
             if (!adquirido) {
                 String msgRetiro = "❌ Auto #" + idAuto + " esperó 3s, estacionamiento lleno y se RETIRÓ.";
-                System.out.println("[" + getHora() + "] " + msgRetiro);
-                notificarCambio(msgRetiro);
+                imprimirYNotificar(msgRetiro);
                 return -1; 
             }
 
-            mutex.acquire();         
-
-            for (int i = 0; i < capacidad; i++) {
-                if (!plazas[i]) {
-                    plazas[i] = true; 
-                    plazaAsignada = i;
-                    break;
+            // Sección crítica protegida por el mutex para asignar la plaza exacta
+            mutex.acquire(); 
+            try {
+                for (int i = 0; i < capacidad; i++) {
+                    if (plazas[i] == 0) {
+                        plazas[i] = idAuto; // Guardamos el ID del auto
+                        plazaAsignada = i;
+                        break;
+                    }
                 }
+                
+                String msgEstacionado = "✅ Auto #" + idAuto + " se ESTACIONÓ en la plaza [" + (plazaAsignada + 1) + "]";
+                imprimirYNotificar(msgEstacionado);
+            } finally {
+                mutex.release(); 
             }
-            
-            String msgEstacionado = "✅ Auto #" + idAuto + " se ESTACIONÓ en la plaza [" + (plazaAsignada + 1) + "]";
-            System.out.println("[" + getHora() + "] " + msgEstacionado);
-            notificarCambio(msgEstacionado);
 
-            mutex.release();         
             lugaresOcupados.release();
 
         } catch (InterruptedException e) {
@@ -95,19 +100,27 @@ public class Estacionamiento {
     public void retirarAuto(int idAuto, int plazaLiberar) {
         try {
             lugaresOcupados.acquire(); 
-            mutex.acquire();           
-
-            plazas[plazaLiberar] = false;
             
-            String msgSalida = "💨 Auto #" + idAuto + " SALIÓ de la plaza [" + (plazaLiberar + 1) + "]";
-            System.out.println("[" + getHora() + "] " + msgSalida);
-            notificarCambio(msgSalida);
-
-            mutex.release();           
+            mutex.acquire(); 
+            try {
+                plazas[plazaLiberar] = 0;
+                
+                String msgSalida = "💨 Auto #" + idAuto + " SALIÓ de la plaza [" + (plazaLiberar + 1) + "]";
+                imprimirYNotificar(msgSalida);
+            } finally {
+                mutex.release(); 
+            }
+            
             lugaresLibres.release();
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    // Método sincronizado auxiliar para evitar que los mensajes de consola se mezclen
+    private synchronized void imprimirYNotificar(String mensaje) {
+        System.out.println("[" + getHora() + "] " + mensaje);
+        notificarCambio(mensaje);
     }
 }

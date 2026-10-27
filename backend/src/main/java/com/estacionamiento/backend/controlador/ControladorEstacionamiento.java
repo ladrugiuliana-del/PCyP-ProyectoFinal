@@ -23,8 +23,8 @@ public class ControladorEstacionamiento {
 
     @PostMapping("/iniciar")
     public String iniciarSimulacion() {
-        int capacidadEstacionamiento = 3; // Definimos 10 plazas para ver los bloqueos de los semáforos
-        int totalAutos = 20;                // Total de autos que participarán en la simulación
+        int capacidadEstacionamiento = 3;
+        int totalAutos = 15;         // Total de autos que participarán en la simulación
 
         Estacionamiento estacionamiento = new Estacionamiento(capacidadEstacionamiento, messagingTemplate);
 
@@ -39,13 +39,13 @@ public class ControladorEstacionamiento {
                     // Si consiguió plaza, espera un momento y se retira
                     if (idPlaza != -1) {
                         try {
-                            Thread.sleep(new Random().nextInt(3000) + 2000); // Permanece de 2 a 5 segundos
+                            Thread.sleep(new Random().nextInt(3000) + 5000); // Permanece unos segundos
                         } catch (InterruptedException e) {
                             Thread.currentThread().interrupt();
                         }
                         estacionamiento.retirarAuto(idAuto, idPlaza);
                     }
-                });
+                }, "Auto-" + idAuto);
                 tAuto.start();
 
                 // Pausa corta entre la llegada de cada auto para simular flujo real
@@ -55,7 +55,7 @@ public class ControladorEstacionamiento {
                     Thread.currentThread().interrupt();
                 }
             }
-        }).start();
+        }, "Hilo-Productor-Autos").start();
 
         return "Simulación de estacionamiento iniciada con éxito.";
     }
