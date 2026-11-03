@@ -4,7 +4,6 @@ build/
 .env.local
 
 # Java / Spring Boot / Maven
-target/
 .settings/
 .classpath
 .project
